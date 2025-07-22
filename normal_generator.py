@@ -24,61 +24,72 @@ class NormalGenerator:
             input("Press Enter to exit...")
         
     def setup_ui(self):
-        # Title
-        tk.Label(self.root, text="Normal Generator", font=("Arial", 16, "bold")).pack(pady=15)
+        # Auto-download repository on startup
+        self.download_repo()
         
-        # Update button
-        update_btn = tk.Button(self.root, text="📥 Update Repository", 
-                              command=self.download_repo, width=25, height=2,
-                              bg="#28a745", fg="white", font=("Arial", 10))
-        update_btn.pack(pady=10)
+        # Title
+        title_label = tk.Label(self.root, text="Normal Map Generator", 
+                              font=("Segoe UI", 18, "bold"), fg="#2c3e50")
+        title_label.pack(pady=(20, 30))
         
         # File selection area
-        file_frame = tk.Frame(self.root, relief="solid", bd=2)
-        file_frame.pack(pady=15, padx=20, fill="x")
+        file_frame = tk.Frame(self.root, relief="solid", bd=1, bg="#f8f9fa")
+        file_frame.pack(pady=20, padx=30, fill="x")
         
-        tk.Label(file_frame, text="Select Image File:", font=("Arial", 10, "bold")).pack(pady=5)
+        tk.Label(file_frame, text="Drop image file here or browse", 
+                font=("Segoe UI", 11), fg="#34495e", bg="#f8f9fa").pack(pady=(15, 10))
         
         select_btn = tk.Button(file_frame, text="📁 Browse File", 
-                              command=self.select_file, width=20)
-        select_btn.pack(pady=5)
+                              command=self.select_file, width=15, height=1,
+                              bg="#3498db", fg="white", font=("Segoe UI", 10),
+                              relief="flat", bd=0, activebackground="#2980b9",
+                              activeforeground="white", cursor="hand2")
+        select_btn.pack(pady=(0, 10))
         
         # File path display
         self.path_label = tk.Label(file_frame, text="No file selected", 
-                                  wraplength=400, bg="white", relief="sunken", 
-                                  height=3, font=("Arial", 9))
-        self.path_label.pack(pady=5, padx=10, fill="x")
+                                  wraplength=400, bg="white", relief="flat", 
+                                  height=2, font=("Segoe UI", 9), fg="#7f8c8d",
+                                  bd=1, relief="solid")
+        self.path_label.pack(pady=(0, 15), padx=15, fill="x")
+        
+        # Setup drag and drop
+        self.setup_drag_drop(file_frame)
         
         # Controls frame
-        controls_frame = tk.Frame(self.root)
-        controls_frame.pack(pady=15)
+        controls_frame = tk.Frame(self.root, bg="#ecf0f1")
+        controls_frame.pack(pady=20, padx=30, fill="x")
         
         # Strength selection
-        strength_frame = tk.Frame(controls_frame)
+        strength_frame = tk.Frame(controls_frame, bg="#ecf0f1")
         strength_frame.pack(side="left", padx=20)
         
-        tk.Label(strength_frame, text="Strength:", font=("Arial", 10, "bold")).pack()
+        tk.Label(strength_frame, text="Strength:", font=("Segoe UI", 10, "bold"), 
+                bg="#ecf0f1", fg="#2c3e50").pack()
         self.strength_var = tk.StringVar(value="2")
         strength_combo = ttk.Combobox(strength_frame, textvariable=self.strength_var, 
-                                     values=[str(i) for i in range(1, 11)], width=10, state="readonly")
+                                     values=[str(i) for i in range(1, 11)], width=8, state="readonly")
         strength_combo.pack(pady=5)
         strength_combo.bind('<<ComboboxSelected>>', self.update_strength)
         
         # Format selection
-        format_frame = tk.Frame(controls_frame)
+        format_frame = tk.Frame(controls_frame, bg="#ecf0f1")
         format_frame.pack(side="right", padx=20)
         
-        tk.Label(format_frame, text="Format:", font=("Arial", 10, "bold")).pack()
+        tk.Label(format_frame, text="Format:", font=("Segoe UI", 10, "bold"), 
+                bg="#ecf0f1", fg="#2c3e50").pack()
         self.format_var = tk.StringVar(value="png")
         format_combo = ttk.Combobox(format_frame, textvariable=self.format_var, 
-                                   values=["png", "exr"], width=10, state="readonly")
+                                   values=["png", "exr"], width=8, state="readonly")
         format_combo.pack(pady=5)
         format_combo.bind('<<ComboboxSelected>>', self.update_format)
         
         # Run button
-        self.run_btn = tk.Button(self.root, text="🚀 Generate Normal Map", 
-                               command=self.run_script, width=25, height=2,
-                               bg="#0078d7", fg="white", font=("Arial", 12, "bold"),
+        self.run_btn = tk.Button(self.root, text="Generate Normal Map", 
+                               command=self.run_script, width=20, height=2,
+                               bg="#27ae60", fg="white", font=("Segoe UI", 12, "bold"),
+                               relief="flat", bd=0, activebackground="#229954",
+                               activeforeground="white", cursor="hand2",
                                state="disabled")
         self.run_btn.pack(pady=20)
         
@@ -94,6 +105,7 @@ class NormalGenerator:
             self.file_path = file_path
             self.path_label.config(text=file_path)
             self.run_btn.config(state="normal")
+            self.execute_btn.config(state="normal")
             
     def update_strength(self, event):
         self.strength = int(self.strength_var.get())
@@ -105,12 +117,6 @@ class NormalGenerator:
         try:
             repo_url = "https://github.com/MircoWerner/BumpToNormalMap/archive/refs/heads/main.zip"
             target_dir = "BumpToNormalMap"
-            output_dir = "output"
-            
-            # Create output directory
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-                print(f"Created output directory: {output_dir}")
             
             # Download and extract if not exists
             if not os.path.exists(target_dir):
@@ -131,12 +137,25 @@ class NormalGenerator:
                 # Clean up
                 os.remove(zip_path)
                 
-                messagebox.showinfo("Success", "Repository downloaded successfully!")
+                # Install required dependencies
+                messagebox.showinfo("Installing", "Installing required dependencies (numpy, opencv-python)...")
+                try:
+                    subprocess.run([sys.executable, "-m", "pip", "install", "numpy", "opencv-python"], 
+                                 check=True, capture_output=True)
+                    messagebox.showinfo("Success", "Repository downloaded and dependencies installed successfully!")
+                except subprocess.CalledProcessError:
+                    messagebox.showwarning("Warning", "Repository downloaded but dependency installation failed.\nPlease install manually: pip install numpy opencv-python")
             else:
                 messagebox.showinfo("Info", "Repository already exists!")
                 
         except Exception as e:
             messagebox.showerror("Error", f"Download failed: {str(e)}")
+
+
+
+
+
+            
             
     def run_script(self):
         if not self.file_path:
@@ -150,24 +169,76 @@ class NormalGenerator:
             return
             
         try:
-            # Create output filename
-            base_name = os.path.splitext(os.path.basename(self.file_path))[0]
-            output_path = os.path.join("output", f"{base_name}_normal.{self.format}")
+            # Get absolute paths
+            script_full_path = os.path.abspath(script_path)
+            input_file_path = os.path.abspath(self.file_path)
             
-            # Run the script
-            cmd = [sys.executable, script_path, self.file_path, str(self.strength), self.format]
+            # Run the script from current working directory (not BumpToNormalMap)
+            # This ensures the output will be saved in the same folder as the input image
+            cmd = [sys.executable, script_full_path, input_file_path, str(self.strength), self.format]
             
             messagebox.showinfo("Processing", "Generating normal map... Please wait.")
             
-            result = subprocess.run(cmd, cwd="BumpToNormalMap", capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                messagebox.showinfo("Success", f"Normal map generated successfully!\nCheck the BumpToNormalMap folder for output.")
+                # Get the expected output path
+                input_dir = os.path.dirname(input_file_path)
+                input_name = os.path.splitext(os.path.basename(input_file_path))[0]
+                output_name = f"{input_name}_normal.{self.format}"
+                output_path = os.path.join(input_dir, output_name)
+                
+                messagebox.showinfo("Success", f"Normal map generated successfully!\nSaved to: {output_path}\n\nOutput:\n{result.stdout}")
             else:
                 messagebox.showerror("Error", f"Script failed:\n{result.stderr}")
                 
         except Exception as e:
             messagebox.showerror("Error", f"Execution failed: {str(e)}")
+            
+    def execute_command(self):
+        if not self.file_path:
+            messagebox.showwarning("Warning", "Please select a file first!")
+            return
+            
+        script_path = os.path.join("BumpToNormalMap", "bumptonormalmap.py")
+        
+        if not os.path.exists(script_path):
+            messagebox.showerror("Error", "Please download repository first!")
+            return
+            
+        try:
+            # Get absolute paths
+            script_full_path = os.path.abspath(script_path)
+            input_file_path = os.path.abspath(self.file_path)
+            
+            # Build the command with absolute paths
+            cmd = f'python "{script_full_path}" "{input_file_path}" {self.strength} {self.format}'
+            
+            # Get the expected output path for display
+            input_dir = os.path.dirname(input_file_path)
+            input_name = os.path.splitext(os.path.basename(input_file_path))[0]
+            output_name = f"{input_name}_normal.{self.format}"
+            output_path = os.path.join(input_dir, output_name)
+            
+            # Show the command that will be executed
+            command_info = f"Executing command:\n\n{cmd}\n\nOutput will be saved to:\n{output_path}\n\nProceed?"
+            
+            if messagebox.askyesno("Execute Command", command_info):
+                # Execute the command from current working directory
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    messagebox.showinfo("Success", f"Command executed successfully!\nSaved to: {output_path}\n\nOutput:\n{result.stdout}")
+                else:
+                    messagebox.showerror("Error", f"Command failed!\n\nError:\n{result.stderr}")
+                    
+        except Exception as e:
+            messagebox.showerror("Error", f"Command execution failed: {str(e)}")
             
     def run(self):
         try:
