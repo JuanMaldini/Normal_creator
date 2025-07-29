@@ -231,3 +231,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Failed to start application: {e}")
         input("Press Enter to exit...")
+
+#https://github.com/JuanMaldini/Normal_creator
