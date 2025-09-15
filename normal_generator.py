@@ -62,6 +62,24 @@ class NormalGenerator:
         )
         select_btn.pack(pady=(0, 10))
 
+        # Botón para seleccionar carpeta
+        select_folder_btn = tk.Button(
+            file_frame,
+            text="📂 Seleccionar carpeta",
+            command=self.select_folder,
+            width=20,
+            height=1,
+            bg="#1abc9c",
+            fg="white",
+            font=("Segoe UI", 10),
+            relief="flat",
+            bd=0,
+            activebackground="#16a085",
+            activeforeground="white",
+            cursor="hand2",
+        )
+        select_folder_btn.pack(pady=(0, 10))
+
         self.path_label = tk.Label(
             file_frame,
             text="No file selected",
@@ -154,9 +172,21 @@ class NormalGenerator:
             if not p:
                 continue
             ap = os.path.abspath(p.strip().strip('{}'))
-            if ap.lower().endswith(valid_extensions):
+            # Excluir .uasset y archivos con prefijo _normal
+            fname = os.path.basename(ap)
+            if ap.lower().endswith(valid_extensions) and not ap.lower().endswith('.uasset') and not fname.lower().startswith('_normal'):
                 cleaned.append(ap)
         self.files = cleaned
+
+        # Mostrar popup con resumen de tareas
+        if self.files:
+            resumen = f"Se procesarán {len(self.files)} archivo(s):\n"
+            max_show = 5
+            for f in self.files[:max_show]:
+                resumen += f"- {f}\n"
+            if len(self.files) > max_show:
+                resumen += f"... y {len(self.files) - max_show} más."
+            messagebox.showinfo("Resumen de tareas", resumen)
         if not self.files:
             self.path_label.config(text="No file selected", fg="#7f8c8d")
             self.run_btn.config(state="disabled")
@@ -169,6 +199,25 @@ class NormalGenerator:
             more = len(self.files) - 1
             self.path_label.config(text=f"{first}\n+ {more} more file(s)…", fg="#27ae60")
         self.run_btn.config(state="normal")
+
+    def select_folder(self):
+        folder_path = filedialog.askdirectory(title="Selecciona una carpeta")
+        if folder_path:
+            files = self.get_files_from_folder(folder_path)
+            self.set_files(files)
+
+    def get_files_from_folder(self, folder_path):
+        valid_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
+        result = []
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file.lower().endswith('.uasset'):
+                    continue
+                if file.lower().startswith('_normal'):
+                    continue
+                if file.lower().endswith(valid_extensions):
+                    result.append(os.path.abspath(os.path.join(root, file)))
+        return result
         
     def setup_drag_drop(self, widget):
         """Setup drag and drop functionality"""
