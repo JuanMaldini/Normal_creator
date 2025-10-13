@@ -30,7 +30,7 @@ class NormalGenerator:
             # Support multiple files
             self.files = []  # list of absolute file paths
             self.strength = 2
-            self.format = "png"
+            self.format = "jpg"
             
             self.setup_ui()
         except Exception as e:
@@ -79,7 +79,7 @@ class NormalGenerator:
         strength_combo.bind('<<ComboboxSelected>>', self.update_strength)
 
         tk.Label(controls, text="Format", font=("Segoe UI", 9, "bold"), bg="#ecf0f1", fg="#2c3e50").pack(side="left", padx=(16,6))
-        self.format_var = tk.StringVar(value="png")
+        self.format_var = tk.StringVar(value="jpg")
         format_combo = ttk.Combobox(controls, textvariable=self.format_var, values=["png", "jpg", "exr"], width=6, state="readonly")
         format_combo.pack(side="left")
         format_combo.bind('<<ComboboxSelected>>', self.update_format)
