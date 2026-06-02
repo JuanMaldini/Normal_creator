@@ -1,8 +1,21 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-import subprocess
-import os
 import sys
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+try:
+    import tkinter as tk
+    from tkinter import ttk, messagebox, filedialog
+except ImportError:
+    import ctypes
+    ctypes.windll.user32.MessageBoxW(
+        0,
+        "Python tkinter no esta instalado.\nInstala Python desde python.org marcando 'tcl/tk'.",
+        "Error - Normal Map Generator", 0x10
+    )
+    sys.exit(1)
+
+import subprocess
 import urllib.request
 import zipfile
 import shutil
@@ -14,8 +27,18 @@ try:
 except ImportError:
     DND_AVAILABLE = False
 
+
+def _show_error(msg):
+    try:
+        messagebox.showerror("Error - Normal Map Generator", msg)
+    except Exception:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, msg, "Error - Normal Map Generator", 0x10)
+
+
 class NormalGenerator:
     def __init__(self):
+        self.root = None
         try:
             if DND_AVAILABLE:
                 self.root = TkinterDnD.Tk()
@@ -23,333 +46,292 @@ class NormalGenerator:
                 self.root = tk.Tk()
 
             self.root.title("Normal Map Generator")
-            # Compact: let Tk auto-size; set a modest minimum
             self.root.minsize(460, 300)
             self.root.configure(bg="#ecf0f1")
-            
-            # Support multiple files
-            self.files = []  # list of absolute file paths
+
+            self.files = []
             self.strength = 2
             self.format = "jpg"
-            
+
             self.setup_ui()
         except Exception as e:
-            print(f"Error initializing: {e}")
-            input("Press Enter to exit...")
-        
+            _show_error(f"Error al iniciar:\n{e}")
+
     def setup_ui(self):
-        # Main content that expands
         content = tk.Frame(self.root, bg="#ecf0f1")
         content.pack(fill="x", pady=(6, 0))
 
-        title = tk.Label(content, text="Normal Map Generator", font=("Segoe UI", 15, "bold"), fg="#2c3e50", bg="#ecf0f1")
-        title.pack(pady=(8, 6))
+        tk.Label(content, text="Normal Map Generator", font=("Segoe UI", 15, "bold"),
+                 fg="#2c3e50", bg="#ecf0f1").pack(pady=(8, 6))
 
-        # File area (DnD target)
         file_frame = tk.Frame(content, relief="solid", bd=1, bg="#f8f9fa")
         file_frame.pack(pady=6, padx=12, fill="x")
 
-        tk.Label(file_frame, text="Drag image(s) here or browse", font=("Segoe UI", 10), fg="#34495e", bg="#f8f9fa").pack(pady=(8, 6))
+        tk.Label(file_frame, text="Drag image(s) here or browse",
+                 font=("Segoe UI", 10), fg="#34495e", bg="#f8f9fa").pack(pady=(8, 6))
 
         buttons = tk.Frame(file_frame, bg="#f8f9fa")
         buttons.pack()
-        tk.Button(buttons, text="📁 Browse Files", command=self.select_file, width=14, bg="#3498db", fg="white",
-                 font=("Segoe UI", 9), relief="flat", bd=0, activebackground="#2980b9", activeforeground="white",
-                 cursor="hand2").pack(side="left", padx=4, pady=(0, 6))
-        tk.Button(buttons, text="📂 Select Folder", command=self.select_folder, width=14, bg="#1abc9c", fg="white",
-                 font=("Segoe UI", 9), relief="flat", bd=0, activebackground="#16a085", activeforeground="white",
-                 cursor="hand2").pack(side="left", padx=4, pady=(0, 6))
+        tk.Button(buttons, text="Browse Files", command=self.select_file, width=14,
+                  bg="#3498db", fg="white", font=("Segoe UI", 9), relief="flat", bd=0,
+                  activebackground="#2980b9", activeforeground="white",
+                  cursor="hand2").pack(side="left", padx=4, pady=(0, 6))
+        tk.Button(buttons, text="Select Folder", command=self.select_folder, width=14,
+                  bg="#1abc9c", fg="white", font=("Segoe UI", 9), relief="flat", bd=0,
+                  activebackground="#16a085", activeforeground="white",
+                  cursor="hand2").pack(side="left", padx=4, pady=(0, 6))
 
-        self.path_label = tk.Label(file_frame, text="No file selected", wraplength=420, bg="white", relief="solid",
-                                   height=1, font=("Segoe UI", 9), fg="#7f8c8d", bd=1, anchor="w", padx=6)
+        self.path_label = tk.Label(file_frame, text="No file selected", wraplength=420,
+                                   bg="white", relief="solid", font=("Segoe UI", 9),
+                                   fg="#7f8c8d", bd=1, anchor="w", padx=6)
         self.path_label.pack(pady=(0, 8), padx=10, fill="x")
 
-        # Enable drag & drop on the file frame
         self.setup_drag_drop(file_frame)
 
-        # Controls
         controls = tk.Frame(content, bg="#ecf0f1")
         controls.pack(pady=6, padx=12, fill="x")
 
-        # Compact inline controls
         self.strength_var = tk.StringVar(value="2")
-        tk.Label(controls, text="Strength", font=("Segoe UI", 9, "bold"), bg="#ecf0f1", fg="#2c3e50").pack(side="left", padx=(0,6))
-        strength_combo = ttk.Combobox(controls, textvariable=self.strength_var, values=[str(i) for i in range(1, 11)], width=6, state="readonly")
-        strength_combo.pack(side="left")
-        strength_combo.bind('<<ComboboxSelected>>', self.update_strength)
+        tk.Label(controls, text="Strength", font=("Segoe UI", 9, "bold"),
+                 bg="#ecf0f1", fg="#2c3e50").pack(side="left", padx=(0, 6))
+        sc = ttk.Combobox(controls, textvariable=self.strength_var,
+                          values=[str(i) for i in range(1, 11)], width=6, state="readonly")
+        sc.pack(side="left")
+        sc.bind('<<ComboboxSelected>>', self.update_strength)
 
-        tk.Label(controls, text="Format", font=("Segoe UI", 9, "bold"), bg="#ecf0f1", fg="#2c3e50").pack(side="left", padx=(16,6))
+        tk.Label(controls, text="Format", font=("Segoe UI", 9, "bold"),
+                 bg="#ecf0f1", fg="#2c3e50").pack(side="left", padx=(16, 6))
         self.format_var = tk.StringVar(value="jpg")
-        format_combo = ttk.Combobox(controls, textvariable=self.format_var, values=["png", "jpg", "exr"], width=6, state="readonly")
-        format_combo.pack(side="left")
-        format_combo.bind('<<ComboboxSelected>>', self.update_format)
+        fc = ttk.Combobox(controls, textvariable=self.format_var,
+                          values=["png", "jpg", "exr"], width=6, state="readonly")
+        fc.pack(side="left")
+        fc.bind('<<ComboboxSelected>>', self.update_format)
 
-        # Footer with primary action pinned to bottom
         footer = tk.Frame(self.root, bg="#ecf0f1")
         footer.pack(side="bottom", fill="x")
-        self.run_btn = tk.Button(footer, text="Generate Normal Map", command=self.run_script, height=1, bg="#27ae60",
-                                 fg="white", font=("Segoe UI", 10, "bold"), relief="flat", bd=0,
-                                 activebackground="#229954", activeforeground="white", cursor="hand2", state="disabled")
+        self.run_btn = tk.Button(footer, text="Generate Normal Map", command=self.run_script,
+                                 height=1, bg="#27ae60", fg="white",
+                                 font=("Segoe UI", 10, "bold"), relief="flat", bd=0,
+                                 activebackground="#229954", activeforeground="white",
+                                 cursor="hand2", state="disabled")
         self.run_btn.pack(padx=12, pady=8, fill="x")
 
-        # Download repo in background (keeps UI responsive)
-        threading.Thread(target=self.download_repo, daemon=True).start()
-        
+        # Download repo only if not already present
+        threading.Thread(target=self.ensure_repo, daemon=True).start()
+
     def select_file(self):
-        file_paths = filedialog.askopenfilenames(
+        paths = filedialog.askopenfilenames(
             title="Select Image Files",
-            filetypes=[
-                ("Image files", "*.png *.jpg *.jpeg *.bmp *.tiff *.tga"),
-                ("All files", "*.*")
-            ]
+            filetypes=[("Image files", "*.png *.jpg *.jpeg *.bmp *.tiff *.tga"),
+                       ("All files", "*.*")]
         )
-        if file_paths:
-            self.set_files(list(file_paths))
-            
+        if paths:
+            self.set_files(list(paths))
+
     def set_file_path(self, file_path):
-        """Backward-compatible single-file setter."""
         self.set_files([file_path])
 
     def set_files(self, file_paths):
-        # Normalize and filter valid image files
-        valid_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
+        valid_ext = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
         cleaned = []
         for p in file_paths:
             if not p:
                 continue
             ap = os.path.abspath(p.strip().strip('{}'))
-            # Excluir .uasset y archivos con prefijo _normal
-            fname = os.path.basename(ap)
-            if ap.lower().endswith(valid_extensions) and not ap.lower().endswith('.uasset') and not fname.lower().startswith('_normal'):
+            fname = os.path.basename(ap).lower()
+            if ap.lower().endswith(valid_ext) and not fname.startswith('_normal'):
                 cleaned.append(ap)
         self.files = cleaned
 
-        # Minimal UX: no popups here; update label only
         if not self.files:
             self.path_label.config(text="No file selected", fg="#7f8c8d")
             self.run_btn.config(state="disabled")
             return
-        # Update label
+
         if len(self.files) == 1:
             self.path_label.config(text=self.files[0], fg="#27ae60")
         else:
-            first = self.files[0]
             more = len(self.files) - 1
-            self.path_label.config(text=f"{first}\n+ {more} more file(s)…", fg="#27ae60")
+            self.path_label.config(text=f"{self.files[0]}\n+ {more} more file(s)", fg="#27ae60")
         self.run_btn.config(state="normal")
 
     def select_folder(self):
-        folder_path = filedialog.askdirectory(title="Selecciona una carpeta")
-        if folder_path:
-            files = self.get_files_from_folder(folder_path)
-            self.set_files(files)
+        folder = filedialog.askdirectory(title="Selecciona una carpeta")
+        if folder:
+            self.set_files(self.get_files_from_folder(folder))
 
     def get_files_from_folder(self, folder_path):
-        valid_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
+        valid_ext = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
         result = []
         for root, _, files in os.walk(folder_path):
-            for file in files:
-                if file.lower().endswith('.uasset'):
+            for f in files:
+                fl = f.lower()
+                if fl.startswith('_normal') or fl.endswith('.uasset'):
                     continue
-                if file.lower().startswith('_normal'):
-                    continue
-                if file.lower().endswith(valid_extensions):
-                    result.append(os.path.abspath(os.path.join(root, file)))
+                if fl.endswith(valid_ext):
+                    result.append(os.path.abspath(os.path.join(root, f)))
         return result
-        
+
     def setup_drag_drop(self, widget):
-        """Setup drag and drop functionality"""
         if not DND_AVAILABLE:
             return
 
-        def on_drag_enter(_event):
-            widget.config(bg="#e8f4fd")
-
-        def on_drag_leave(_event):
-            widget.config(bg="#f8f9fa")
-
+        def on_enter(_e): widget.config(bg="#e8f4fd")
+        def on_leave(_e): widget.config(bg="#f8f9fa")
         def on_drop(event):
             widget.config(bg="#f8f9fa")
-            # Get dropped file path(s)
             try:
                 paths = list(self.root.tk.splitlist(event.data))
             except Exception:
                 paths = event.data.split()
-            # Filter only valid image files and set
-            valid_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
-            selected = [p.strip().strip('{}') for p in paths if p.lower().endswith(valid_extensions)]
+            valid_ext = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tga')
+            selected = [p.strip().strip('{}') for p in paths if p.lower().endswith(valid_ext)]
             if selected:
                 self.set_files(selected)
             else:
-                messagebox.showerror("Invalid File", "Please select valid image file(s).")
+                messagebox.showerror("Invalid File", "Please drop valid image files.")
 
-        # Enable drag and drop if available
         try:
             widget.drop_target_register(DND_FILES)
-            widget.dnd_bind('<<DropEnter>>', on_drag_enter)
-            widget.dnd_bind('<<DropLeave>>', on_drag_leave)
+            widget.dnd_bind('<<DropEnter>>', on_enter)
+            widget.dnd_bind('<<DropLeave>>', on_leave)
             widget.dnd_bind('<<Drop>>', on_drop)
         except Exception:
             pass
-        
-    def update_strength(self, event):
+
+    def update_strength(self, _e):
         self.strength = int(self.strength_var.get())
-        
-    def update_format(self, event):
+
+    def update_format(self, _e):
         self.format = self.format_var.get()
-        
-    def download_repo(self):
+
+    def ensure_repo(self):
+        """Download BumpToNormalMap only if not already present."""
+        target_dir = os.path.join(SCRIPT_DIR, "BumpToNormalMap")
+        script = os.path.join(target_dir, "bumptonormalmap.py")
+
+        if os.path.exists(script):
+            # Already there — just make sure deps are installed
+            self._install_deps()
+            return
+
         try:
             repo_url = "https://github.com/MircoWerner/BumpToNormalMap/archive/refs/heads/main.zip"
-            target_dir = "BumpToNormalMap"
-            
-            # Always ensure a fresh copy: delete existing folder if present
-            try:
-                if os.path.exists(target_dir):
-                    shutil.rmtree(target_dir, ignore_errors=True)
-            except Exception:
-                pass
+            zip_path = os.path.join(SCRIPT_DIR, "repo.zip")
 
-            # Remove any previous zip artifact
-            zip_path = "repo.zip"
-            try:
-                if os.path.exists(zip_path):
-                    os.remove(zip_path)
-            except Exception:
-                pass
-
-            # Download fresh zip
             urllib.request.urlretrieve(repo_url, zip_path)
-            
-            # Extract
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall()
-            
-            # Rename extracted folder
-            if os.path.exists("BumpToNormalMap-main"):
-                shutil.move("BumpToNormalMap-main", target_dir)
-            
-            # Clean zip
+
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(SCRIPT_DIR)
+
+            extracted = os.path.join(SCRIPT_DIR, "BumpToNormalMap-main")
+            if os.path.exists(extracted):
+                shutil.move(extracted, target_dir)
+
             try:
                 os.remove(zip_path)
             except Exception:
                 pass
-            
-            # Ensure dependencies (silent)
-            try:
-                subprocess.run([sys.executable, "-m", "pip", "install", "numpy", "opencv-python"], 
-                             check=True, capture_output=True)
-            except subprocess.CalledProcessError:
-                pass
-                
+
+            self._install_deps()
         except Exception as e:
+            self.root.after(0, lambda: messagebox.showerror(
+                "Error", f"No se pudo descargar el repositorio:\n{e}"))
+
+    def _install_deps(self):
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "numpy", "opencv-python"],
+                check=True, capture_output=True
+            )
+        except Exception:
             pass
 
-
-
-
-
-            
-            
     def run_script(self):
         if not self.files:
             return
-
-        # Disable run button during processing
         self.run_btn.config(state="disabled")
 
         def _worker():
-            script_path = os.path.join("BumpToNormalMap", "bumptonormalmap.py")
+            script_path = os.path.join(SCRIPT_DIR, "BumpToNormalMap", "bumptonormalmap.py")
             if not os.path.exists(script_path):
-                messagebox.showerror("Error", "Repository not found!")
+                messagebox.showerror("Error", "Repositorio no encontrado. Verifica tu conexion a internet.")
                 self.run_btn.config(state="normal")
                 return
 
-            script_full_path = os.path.abspath(script_path)
-            successes = []
-            failures = []
+            successes, failures = [], []
 
-            for input_file_path in self.files:
+            for input_path in self.files:
                 try:
-                    input_file_path = os.path.abspath(input_file_path)
-                    selected_format = self.format
-                    script_format = 'png' if selected_format == 'jpg' else selected_format
-                    cmd = [sys.executable, script_full_path, input_file_path, str(self.strength), script_format]
+                    input_path = os.path.abspath(input_path)
+                    sel_fmt = self.format
+                    script_fmt = 'png' if sel_fmt == 'jpg' else sel_fmt
+                    cmd = [sys.executable, script_path, input_path, str(self.strength), script_fmt]
                     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
                     if result.returncode == 0:
-                        # Try to read the written path from stdout
-                        output_path = None
                         out = result.stdout or ""
-                        marker = "Wrote '"
-                        if marker in out:
+                        output_path = None
+                        if "Wrote '" in out:
                             try:
-                                after = out.split(marker, 1)[1]
-                                output_path = after.split("'", 1)[0]
+                                output_path = out.split("Wrote '", 1)[1].split("'", 1)[0]
                             except Exception:
-                                output_path = None
+                                pass
                         if not output_path:
-                            # Fallback to common naming '*_normal.ext'
-                            input_dir = os.path.dirname(input_file_path)
-                            input_name = os.path.splitext(os.path.basename(input_file_path))[0]
-                            output_path = os.path.join(input_dir, f"{input_name}_normal.{script_format}")
+                            base = os.path.splitext(os.path.basename(input_path))[0]
+                            output_path = os.path.join(os.path.dirname(input_path),
+                                                       f"{base}_normal.{script_fmt}")
 
-                        final_path = output_path
-                        if selected_format == 'jpg':
-                            # Convert PNG -> JPG
+                        final = output_path
+                        if sel_fmt == 'jpg':
                             try:
                                 try:
-                                    from PIL import Image  # type: ignore
-                                except Exception:
-                                    subprocess.run([sys.executable, "-m", "pip", "install", "pillow"], check=True, capture_output=True)
-                                    from PIL import Image  # type: ignore
-                                jpg_path = os.path.splitext(output_path)[0] + ".jpg"
+                                    from PIL import Image
+                                except ImportError:
+                                    subprocess.run([sys.executable, "-m", "pip", "install", "pillow"],
+                                                   check=True, capture_output=True)
+                                    from PIL import Image
+                                jpg = os.path.splitext(output_path)[0] + ".jpg"
                                 with Image.open(output_path) as im:
-                                    im.convert('RGB').save(jpg_path, 'JPEG', quality=95)
-                                try:
-                                    if script_format == 'png' and os.path.exists(output_path):
-                                        os.remove(output_path)
-                                except Exception:
-                                    pass
-                                final_path = jpg_path
+                                    im.convert('RGB').save(jpg, 'JPEG', quality=95)
+                                if os.path.exists(output_path):
+                                    os.remove(output_path)
+                                final = jpg
                             except Exception:
-                                final_path = output_path
+                                final = output_path
 
-                        successes.append(final_path)
+                        successes.append(final)
                     else:
-                        failures.append(input_file_path)
+                        failures.append(input_path)
                 except Exception:
-                    failures.append(input_file_path)
+                    failures.append(input_path)
 
-            # Minimal summary
             if successes and not failures:
-                if len(successes) == 1:
-                    messagebox.showinfo("Success", f"Saved:\n{successes[0]}")
-                else:
-                    messagebox.showinfo("Success", f"Generated {len(successes)} normal maps.")
-            elif successes and failures:
-                messagebox.showwarning("Partial Success", f"Generated {len(successes)} file(s), {len(failures)} failed.")
+                msg = f"Guardado:\n{successes[0]}" if len(successes) == 1 \
+                      else f"Generados {len(successes)} normal maps."
+                messagebox.showinfo("Exito", msg)
+            elif successes:
+                messagebox.showwarning("Parcial", f"{len(successes)} ok, {len(failures)} fallaron.")
             else:
-                messagebox.showerror("Error", "Generation failed for all files.")
+                messagebox.showerror("Error", "Fallo la generacion.")
 
-            # Re-enable run
             self.run_btn.config(state="normal")
 
-        # Run without blocking UI
         threading.Thread(target=_worker, daemon=True).start()
 
     def run(self):
-        try:
-            self.root.mainloop()
-        except Exception as e:
-            print(f"Error running application: {e}")
-            input("Press Enter to exit...")
+        if self.root is None:
+            return
+        self.root.lift()
+        self.root.focus_force()
+        self.root.mainloop()
+
 
 if __name__ == "__main__":
     try:
         app = NormalGenerator()
         app.run()
     except Exception as e:
-        print(f"Failed to start application: {e}")
-        input("Press Enter to exit...")
+        _show_error(f"No se pudo iniciar:\n{e}")
 
-#https://github.com/JuanMaldini/Normal_creator
+# https://github.com/JuanMaldini/Normal_creator
